@@ -1,75 +1,75 @@
 ---
-- name: Move and run vDCM script # Name of the general script
-  hosts: chassis1 # Device or Group that is used to run this Playbook
-  remote_user: root # The remote user to log into the remote devices
-  strategy: free # Use to run independent threats for each device. Without this, each task would need to be completed in all the devices, to be able to move to the next task
-  tasks: # Lists of tasks to be run in the playbook
-  - name: Creates /temps/ directory # Name of the task to create a folder
-    file: path=/temps state=directory # Uses the file module to create a directory called /temps in the remote machine
-  - name: Disable Firewall on Hosts # Name of the task to disable the firewall service in the remote machine
-    command: systemctl disable firewalld # Uses the command module to run the command and disble the firewall service
-  - name: Stop Firewall on Hosts # Name of the task to stop the firewall service
-    command: systemctl stop firewalld # Uses the command module to run the command and stop de firewall service
-  - name: Copy SW from localhost to vdcm group # Name of the task to copy the vDCM software from the local machine into the remote vDCM 
-    copy: # Uses the copy module
-       src: /Users/carlrod2/vdcm-installer-7.0.1-215.sh # Sets the local machine path of the file to be transmitted
-       dest: /temps # Sets the destination folder for this file (the folder created in a previous task)
-       owner: root # SSet te owner of the file
-       group: root # Set the group of the file
-       mode: 0777 # Set the permissions for the file (all permissions for all users). See chmod command on linux
-  - name: Run vDCM installation # Name of the task to run the vDCM installation script
-    command: /temps/vdcm-installer-7.0.1-215.sh # Uses the command module to trigger the installation script inside the vDCM
-    register: vdcm_install_out # Uses the register module to register (or save) the output of the script into the variable vdcm_install_out
-  - debug: var=vdcm_install_out.stdout_lines # Prints the variable vdcm_install_out in the screen of the local pc when the playbook is run (just to check any problems during the installation)
-  - name: Enable to run all vDCM services #  Name of the task to enable all the vDCM services
-    command: /opt/cisco/vdcm/bin/vdcm-configure service --enable --all # vDCM command to enable all services. See the vDCM installation PDF for more details of the vDCM services enabled
-    register: vdcm_enable_all Â# Register the output of the command into the variable 'vdcm_enable_all'
-  - debug: var=vdcm_enable_all.stdout_lines # Print the variable into the local pc when the playbook is run
-  - name: Stop vDCM software # Name of the task to stop the vDCM service (to add IIOP Users)
-    command: /opt/cisco/vdcm/bin/vdcm-configure service --stop # Uses the command module to run the vDCM stop services command
-    register: vdcm_service_stop # Register the output into the 'vdcm_service_stop' variable
-  - debug: var=vdcm_service_stop.stdout_lines # Print the variable into the local pc when the playbook is run
-  - name: Add IIOP user for VSM # Name of the task to add an IIOP user (to allow IIOP access into the device from VSM and NMS devices)
-    command: /opt/cisco/vdcm/bin/vdcm-configure iiop-user --add IZZI-ADMIN --password C15c0123 # Uses the command module to run the IIOP user add command
-  - name: Stop again vDCM software # Name of the task to stop again the vDCM software (after creating the user the vDCM starts running again)
-    command: /opt/cisco/vdcm/bin/vdcm-configure service --stop # Uses the command module to run the vDCM stop services command
-    register: vdcm_service_stop # Register the output into the vdcm_service_stop variable
-  - debug: var=vdcm_service_stop.stdout_lines # Print the variable into the local pc when the playbook is run
-  - name: Comment existing NTP servers # Name of the task to comment with the number sign the default NTPs in the NTP config file
-    replace: # Uses the replace module to replace a line in the file
-      path: /etc/ntp.conf # Sets the path of the file to be edited
-      regexp: '^server' # Uses RegEx to find any line that starts (^) with the string 'server'
-      replace: '#server' # Replaces the string found for the string with the comment
-  - name: Update /etc/ntp.conf file # Name of the task to add the NTP server for the implementation
-    lineinfile: # Uses the lineinfile module to add a new line into a file
-      path: /etc/ntp.conf # Sets the path of the file to be edited
-      regexp: '^server(.*)' # RegEx looks for the line that starts with 'server'
-      insertafter: '(^)#server(.*)' # Then, looks for a line that starts with the commented servers to insert the new line
-      line: 'server 10.240.110.100' # Inserts the line 'server 10.240.110.100', that is the NTP server to be used in our implementation
-  - name: Restart ntpd service # Name of the task to restart the NTP Server
-    command: service ntpd restart # Uses the command module to restart the NTP service
-    args: # Uses the args module
-      warn: false # Ansible warns that the restart of services should not be done through the command module. It is used this line to discard this warning at the output
-  - name: Debug NTP State # Name of the task to print in the local pc if the NTP is working correctly
-    command: ntpq -p # Uses the command module to check the ntp statistics
-    register: ntpq_out # Registers this info into the 'ntpq_out' variable
-  - debug: var=ntpq_out.stdout_lines # Prints the variable into the local pc when the Playbook is run
-  - name: Fix warnings # Name of the task to fix common warnings in the vDCMs
-    command: /opt/cisco/vdcm/bin/vdcm-configure -v fix --warnings # Uses the command module to run the vDCM fix commamd
-    register: vdcm_fix_warnings # Saves the output of the fix command into the vdcm_fix_warnings variable
-  - debug: var=vdcm_fix_warnings.stdout_lines # Prints the variable into the local pc when the playbook is run
-  - name: Change MaxCrashReportsSize /etc/abrt/abrt.conf to 8000 # Name of the task to replace a line in the abrt.conf file
-    replace: # Uses the replace module to replace a line in a file
-      path: /etc/abrt/abrt.conf # Sets the path of the file to be edited
-      regexp: '^MaxCrashReportsSize(.*)' # Uses RegEx to look for the line that starts with the string 'MaxCrashReportSize='
-      replace: 'MaxCrashReportsSize = 8000' # Replaces the line with the 'MaxCrashReportSize = 8000'
-  - name: Comment RateLimitInterval on journald.conf # Name of the task to replace a line in the journal.conf file
-    replace: # Uses the replace module to replace a line in a file
-      path: /etc/systemd/journald.conf # Sets the path of the file to be edited
-      regexp: '^RateLimitInterval=(.*)' # Uses RegEx to find the line that starts with 'RateLimitInterval='
-      replace: '#RateLimitInterval=60s' # Comments the line founded
-  - name: Comment RateLimitBurst on journald.conf # Name of the task to replace a line in a file
-    replace: # Uses the replace module to replace a line in a file
-      path: /etc/systemd/journald.conf # Sets the path of the file to be edited
-      regexp: '^RateLimitBurst=(.*)' # Uses RegEx to find the line that starts with Â'RateLimitBurst='
-      replace: '#RateLimitBurst=1818' # Comments the line founded
+- name: Move and run vDCM script
+  hosts: chassis1
+  remote_user: root
+  strategy: free
+  tasks:
+  - name: Creates /temps/ directory
+    file: path=/temps state=directory
+  - name: Disable Firewall on Hosts
+    command: systemctl disable firewalld
+  - name: Stop Firewall on Hosts
+    command: systemctl stop firewalld
+  - name: Copy SW from localhost to vdcm group
+    copy:
+       src: /Users/carlrod2/vdcm-installer-7.0.1-215.sh
+       dest: /temps
+       owner: root
+       group: root
+       mode: 0777
+  - name: Run vDCM installation
+    command: /temps/vdcm-installer-7.0.1-215.sh
+    register: vdcm_install_out
+  - debug: var=vdcm_install_out.stdout_lines
+  - name: Enable to run all vDCM services
+    command: /opt/cisco/vdcm/bin/vdcm-configure service --enable --all
+    register: vdcm_enable_all
+  - debug: var=vdcm_enable_all.stdout_lines
+  - name: Stop vDCM software
+    command: /opt/cisco/vdcm/bin/vdcm-configure service --stop
+    register: vdcm_service_stop
+  - debug: var=vdcm_service_stop.stdout_lines
+  - name: Add IIOP user for VSM
+    command: /opt/cisco/vdcm/bin/vdcm-configure iiop-user --add IZZI-ADMIN --password C15c0123
+  - name: Stop again vDCM software
+    command: /opt/cisco/vdcm/bin/vdcm-configure service --stop
+    register: vdcm_service_stop
+  - debug: var=vdcm_service_stop.stdout_lines
+  - name: Comment existing NTP servers
+    replace:
+      path: /etc/ntp.conf
+      regexp: '^server'
+      replace: '#server'
+  - name: Update /etc/ntp.conf file
+    lineinfile:
+      path: /etc/ntp.conf
+      regexp: '^server(.*)'
+      insertafter: '(^)#server(.*)'
+      line: 'server 10.240.110.100'
+  - name: Restart ntpd service
+    command: service ntpd restart
+    args:
+      warn: false
+  - name: Debug NTP State
+    command: ntpq -p
+    register: ntpq_out
+  - debug: var=ntpq_out.stdout_lines
+  - name: Fix warnings
+    command: /opt/cisco/vdcm/bin/vdcm-configure -v fix --warnings
+    register: vdcm_fix_warnings
+  - debug: var=vdcm_fix_warnings.stdout_lines
+  - name: Change MaxCrashReportsSize /etc/abrt/abrt.conf to 8000
+    replace:
+      path: /etc/abrt/abrt.conf
+      regexp: '^MaxCrashReportsSize(.*)'
+      replace: 'MaxCrashReportsSize = 8000'
+  - name: Comment RateLimitInterval on journald.conf
+    replace:
+      path: /etc/systemd/journald.conf
+      regexp: '^RateLimitInterval=(.*)'
+      replace: '#RateLimitInterval=60s'
+  - name: Comment RateLimitBurst on journald.conf
+    replace:
+      path: /etc/systemd/journald.conf
+      regexp: '^RateLimitBurst=(.*)'
+      replace: '#RateLimitBurst=1818'

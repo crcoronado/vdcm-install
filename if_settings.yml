@@ -1,85 +1,85 @@
 ---
-- name: Change Default interfaces configurations # Name of the General Playbook
-  hosts: chassis1 # name fo the group or devices located in the hosts file
-  remote_user: root # User used to access the remote vDCM
-  strategy: free # Allow to run threats in each vDCM independently. Without it, each task would need to finish in all the devices before procedding to the next task
-  tasks: # List of the tasks to run
-  - name: Delete extra vNIC on vDCMs # Name of the task to delete an extra vNIC created. In other implementations this line may not be needed
-    file: # Use of the File Module to delete a file
-      state: absent # Will delete the file in the path
-      path: "/etc/sysconfig/network-scripts/ifcfg-enp13s0" # File to be removed. If it does not exist, it will continue withpout ERRORS
-  - name: List all interfaces in host # Name of the task to retrieve the list of all interfaces in the vDCM
-    command: find /etc/sysconfig/network-scripts/ -name "ifcfg-enp*" # Run the command "find /etc/sysconfig/network-scripts/ -name ifcfg-en*, this will run the linux find command and retrieve the list of interfaces
-    register: host_interfaces # The retrived output of the find command is stored in the host_interfaces variable
-  - name: Replace DHCP info on ifcfg-enp* # Name of the task to replace the line BOOTPROTO=dhcp by BOOTPROTO=static in each ifcfg-enp+ file
-    replace: # Use the module replace to replace a line in a file
-      path={{item}} # The path of the file to be edited. In this case is used in conjuction with the with_items module, that retrieves the information from the host_interfaces variable from the previous task
-      regexp='BOOTPROTO=dhcp' # The replace module will look up for the line with the information 'BOOTPROTO=dhcp'
-      replace='BOOTPROTO=static' # The replace module will replace the found line with the information 'BOOTPROTO=static'
-    with_items: "{{ host_interfaces.stdout_lines }}" # The statement of the with_items module, to do a loop of the interfaces of the vDCM and replace the BOOTPROTO line
-  - name: Replace IPV4 Failure Fatal on IPV4 # Name of the task to repalce the line IPV4_FAILURE_FATAL
-    replace: # Use the module replace to replace a line in the file
-      path={{item}} # The path of the file to be edited. In this case is used in conjunction with the with_items module, that retrieves the information from the host_interfaces variable from a previous task
-      regexp='IPV4_FAILURE_FATAL=no' # The replace module will look up for the line with the information 'IPV4_FAILURE_FATAL=no'
-      replace='IPV4_FAILURE_FATAL=yes' # The replace module will replace the found line with the inforamtion 'IPV4_FAILURE_FATAL=yes'
-    with_items: "{{ host_interfaces.stdout_lines }}" The statement of the with_items module, to do a loop of the interfaces of the vDCM and replace the IPV4_FAILURE_FATAL
-  - name: Set IP as IPv4  # As the previous tasks, this task replaces 'IPV6INIT=yes' for 'IPV6INIT=no'
-    replace:      
+- name: Change Default interfaces configurations
+  hosts: chassis1
+  remote_user: root
+  strategy: free
+  tasks:
+  - name: Delete extra vNIC on vDCMs
+    file:
+      state: absent
+      path: "/etc/sysconfig/network-scripts/ifcfg-enp13s0"
+  - name: List all interfaces in host
+    command: find /etc/sysconfig/network-scripts/ -name "ifcfg-enp*"
+    register: host_interfaces
+  - name: Replace DHCP info on ifcfg-enp*
+    replace:
+      path={{item}}
+      regexp='BOOTPROTO=dhcp'
+      replace='BOOTPROTO=static'
+    with_items: "{{ host_interfaces.stdout_lines }}"
+  - name: Replace IPV4 Failure Fatal on IPV4
+    replace:
+      path={{item}}
+      regexp='IPV4_FAILURE_FATAL=no'
+      replace='IPV4_FAILURE_FATAL=yes'
+    with_items: "{{ host_interfaces.stdout_lines }}"
+  - name: Set IP as IPv4
+    replace:
       path={{item}}
       regexp='IPV6INIT=yes'
       replace='IPV6INIT=no'
     with_items: "{{ host_interfaces.stdout_lines }}"
-  - name: Set Interface on Boot # As the previous tasks, this task replaces 'ONBOOT=no' for Â'ONBOOT=yes'
+  - name: Set Interface on Boot
     replace:
       path={{item}}
       regexp='ONBOOT=no'
       replace='ONBOOT=yes'
     with_items: "{{ host_interfaces.stdout_lines }}"
-  - name: Look Up for Input_IP # Name of the task to retrieve information from a CSV file
-    set_fact: ip_input="{{ lookup('csvfile', '{{item}} file=Ansible.csv delimiter=, col=1') }}" # Uses the Ansible.csv file, and looks for the value of the variable 'item' doing a lookup (looks in the first column for this value). If found, it will returns the value of the first column to the right
-    with_items: "{{ ansible_default_ipv4.address }}" # Sets the 'item' variable to the ansible_default:ipv4.address. This is an ansible module that asks the vDCM which is the configured IP ADDRESS (Management). Then, this value is used in the CSV file to determine the INPUT TRAFFIC IP ADDRESS (first column).
-  - name: Insert IPADDRESS_INPUT into file # Name of the task to insert the retrieved value from the CSV file (first column), into the Inpit Interface configuration file  
-    lineinfile: # Use of the lineinfile module to add a new line into a file
-      path: /etc/sysconfig/network-scripts/ifcfg-enp7s0 # Set the path of the file to be edited
-      insertafter: 'EOF' # Inserts after the specified string the desired info. When used 'EOF' (End Of File), will add the info at the end of the file
-      line: "IPADDR={{ip_input}}" # Insert the information IPADDR and passes the retrieved value from the previous task. This would insert, for example: 'IPADDR=100.172.12.34' into the file
-  - name: Look Up for Prefix # Name of the task to look for the Mask of the Input Interface. It does the exact same steps of the previous tasks but retrieves the information of the second column.
-    set_fact: ip_input_prefix="{{ lookup('csvfile', '{{item}} file=Ansible.csv delimiter=, col=2') }}"
+  - name: Look Up for Input_IP
+    set_fact: ip_input="{{ lookup('csvfile', '{{item}} file=ansible.csv delimiter=, col=1') }}"
     with_items: "{{ ansible_default_ipv4.address }}"
-  - name: Insert PREFIX_INPUT into file # Name of the task to insert the information. It does the same than the previosu task but inserts at the end of the file the Mask of the input interface 
+  - name: Insert IPADDRESS_INPUT into file
+    lineinfile:
+      path: /etc/sysconfig/network-scripts/ifcfg-enp7s0
+      insertafter: 'EOF'
+      line: "IPADDR={{ip_input}}"
+  - name: Look Up for Prefix
+    set_fact: ip_input_prefix="{{ lookup('csvfile', '{{item}} file=ansible.csv delimiter=, col=2') }}"
+    with_items: "{{ ansible_default_ipv4.address }}"
+  - name: Insert PREFIX_INPUT into file
     lineinfile:
       path: /etc/sysconfig/network-scripts/ifcfg-enp7s0
       insertafter: 'EOF'
       line: "PREFIX={{ip_input_prefix}}"
-  - name: Look Up for Output_IP # Name of the task to retrieve information. Same as previous tasks but retrieves the IP_ADDRESS of the output interface (third column)
-    set_fact: ip_output="{{ lookup('csvfile', '{{item}} file=Ansible.csv delimiter=, col=3') }}"
+  - name: Look Up for Output_IP
+    set_fact: ip_output="{{ lookup('csvfile', '{{item}} file=ansible.csv delimiter=, col=3') }}"
     with_items: "{{ ansible_default_ipv4.address }}"
-  - name: Insert IPADDRESS_OUPTUT into file # Name of the task to insert the the information. It does the same than the previous tasks but inserts in the output interface the IP_ADDRESS
+  - name: Insert IPADDRESS_OUPTUT into file
     lineinfile:
       path: /etc/sysconfig/network-scripts/ifcfg-enp12s0
       insertafter: 'EOF'
       line: "IPADDR={{ip_output}}"
-  - name: Look Up for Prefix # Name of the task to retrieve information. Same as previous tasks but retrieves the Mask of the output interface (fourth column)
-    set_fact: ip_output_prefix="{{ lookup('csvfile', '{{item}} file=Ansible.csv delimiter=, col=4') }}"
+  - name: Look Up for Prefix
+    set_fact: ip_output_prefix="{{ lookup('csvfile', '{{item}} file=ansible.csv delimiter=, col=4') }}"
     with_items: "{{ ansible_default_ipv4.address }}"
-  - name: Insert PREFIX_OUTPUT into file # Name of the task to insert information. It does the same than the previous tasks but inserts the Mask information into the output interface
+  - name: Insert PREFIX_OUTPUT into file
     lineinfile:
       path: /etc/sysconfig/network-scripts/ifcfg-enp12s0
       insertafter: 'EOF'
       line: "PREFIX={{ip_output_prefix}}"
-  - name: Change RP Filter for Input Traffic Port # Name fo the task to insert a filter into the sysctl.conf file
-    lineinfile: # Uses the module to insert a line into a file
-      path: /etc/sysctl.conf # Specifies the path of the file to be edited
-      insertafter: 'EOF' # The information is inserted at the End Of File (EOF) 
-      line: "net.ipv4.conf.enp7s0.rp_filter=2" # The line to be inserted
-  - name: Change RP Filter for Output Traffic Port # Name of the task to insert information. Same as the previous taks but inserts a filter for the second traffic interface
+  - name: Change RP Filter for Input Traffic Port
+    lineinfile:
+      path: /etc/sysctl.conf
+      insertafter: 'EOF'
+      line: "net.ipv4.conf.enp7s0.rp_filter=2"
+  - name: Change RP Fier for Output Traffic Port
     lineinfile:
       path: /etc/sysctl.conf
       insertafter: 'EOF'
       line: "net.ipv4.conf.enp12s0.rp_filter=2"
-  - name: Restart Sysctl # Name of the taks to restart the sysctl -p process
-    command: sysctl -p # Uses the command module to send the command 'sysctl -p' and reset the service
-  - name: Restart network service # Name of the task to restart the network service
-    command: service network restart # Uses the command module to send the command Â'service network restart' and restart the network services (thus, apply the IP ADDRESS and MASKs configured through the script)
-    args: # Uses the module args
-      warn: false # Disable Warnings. Ansible Warn that other modules should be used to restart services on the remote vDCMs, but this warnings are ingnored with this line
+  - name: Restart Sysctl
+    command: sysctl -p
+  - name: Restart network service
+    command: service network restart
+    args:
+      warn: false

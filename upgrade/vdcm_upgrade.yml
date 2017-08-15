@@ -1,0 +1,20 @@
+---
+- name: Move and run vDCM script
+  hosts: chassis6
+  remote_user: root
+  strategy: free
+  tasks:
+  - name: Copy SW from localhost to vdcm group
+    copy:
+       src: /Users/carlrod2/vdcm-installer-7.0.1-215.sh
+       dest: /temps
+       owner: root
+       group: root
+       mode: 0777
+  - name: Run vDCM installation
+    command: /temps/vdcm-installer-7.0.1-215.sh
+    register: vdcm_install_out
+  - debug: var=vdcm_install_out.stdout_lines
+  - name: Enable to run all vDCM services
+    command: /opt/cisco/vdcm/bin/vdcm-configure service --enable --all
+    register: vdcm_enable_all

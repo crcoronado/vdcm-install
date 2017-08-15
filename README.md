@@ -90,6 +90,7 @@ vsm1 ansible_ssh_host=10.0.0.21
 
 [local]
 macpc ansible_ssh_host=127.0.0.1
+
 ---
 
 Then, save the file.
@@ -154,7 +155,7 @@ The second playbook is the install_vdcm.yml playbook. This playbook manly does:
   - name: Comment RateLimitBurst on journald.conf
 ---
 
-Some values (for example, NTP IP Address) is set inside the Playbook. For part√icular IP ADDRESSES for NPT, the playbook must be modified with the respective values.
+Some values (for example, NTP IP Address) is set inside the Playbook. For part√Éicular IP ADDRESSES for NPT, the playbook must be modified with the respective values.
 
 10. The next step is to save the SSH Key inside the local PC, to allow the ansible playbook to run freely. To do this run the command:
 
